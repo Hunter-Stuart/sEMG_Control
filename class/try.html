@@ -1,0 +1,2063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>基于肌电信号的手势识别与躲避游戏</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    body {
+      background-color: #f5f7fa;
+      background: url("ground.jpg") no-repeat;
+      background-size: cover;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .view-switch-group {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .view-switch-btn {
+      padding: 0.8rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      background-color: #3498db;
+      color: white;
+      transition: all 0.3s ease;
+    }
+
+    .view-switch-btn.active {
+      background-color: #2980b9;
+      box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+    }
+
+    .view-switch-btn:hover:not(.active) {
+      background-color: #4aa3df;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      background-color: rgb(255, 255, 255);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 2rem;
+      margin-top: 1rem;
+    }
+
+    .text-container {
+      display: block;
+    }
+
+    .chart-container {
+      display: none;
+    }
+
+    .game-container-section {
+      display: none;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+      font-weight: 600;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 0.8rem;
+    }
+
+    .course-info {
+      font-size: 1.1rem;
+      color: #2c3e50;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 1.5rem;
+      display: block;
+    }
+
+    .mode-select-group {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background-color: #f5f7fa;
+      border-radius: 8px;
+    }
+
+    .mode-select-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .mode-select-item input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .mode-select-item label {
+      font-size: 0.95rem;
+      color: #34495e;
+      cursor: pointer;
+    }
+
+    .serial-connect-btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.3s ease;
+      background-color: #2ecc71;
+      color: white;
+    }
+
+    .serial-connect-btn:hover {
+      background-color: #27ae60;
+    }
+
+    .serial-connect-btn:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+
+    .data-display {
+      position: relative;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .clear-btn,
+    .disconnect-btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.3s ease;
+    }
+
+    .clear-btn {
+      background-color: #3498db;
+      color: white;
+    }
+
+    .clear-btn:hover {
+      background-color: #2980b9;
+    }
+
+    .disconnect-btn {
+      background-color: #e74c3c;
+      color: white;
+    }
+
+    .disconnect-btn:hover {
+      background-color: #c0392b;
+    }
+
+    textarea {
+      width: 100%;
+      height: 700px;
+      padding: 1rem;
+      border: 2px solid #e0e6ed;
+      border-radius: 8px;
+      font-size: 1rem;
+      line-height: 1.6;
+      resize: vertical;
+      background-color: #fafbfc;
+      color: #34495e;
+      outline: none;
+      transition: border-color 0.3s ease;
+    }
+
+    textarea:focus {
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    }
+
+    .chart-toggle-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .chart-toggle-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      background-color: #f5f7fa;
+      color: #34495e;
+      transition: all 0.3s ease;
+    }
+
+    .chart-toggle-btn.active {
+      background-color: #3498db;
+      color: white;
+      border-color: #3498db;
+    }
+
+    .chart-toggle-btn:hover:not(.active) {
+      background-color: #eaecef;
+    }
+
+    .total-raw-chart,
+    .recent-raw-chart,
+    .state-change-chart {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      background-color: #f5f7fa;
+      border-radius: 8px;
+      height: 300px;
+    }
+
+    .buffer-chart {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      background-color: #f5f7fa;
+      border-radius: 8px;
+      height: 400px;
+    }
+
+    .status {
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: #7f8c8d;
+      flex-wrap: wrap;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0 0.5rem;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #e74c3c;
+      transition: background-color 0.3s ease;
+    }
+
+    .status-dot.connected {
+      background-color: #2ecc71;
+    }
+
+    .serial-status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #e74c3c;
+      transition: background-color 0.3s ease;
+    }
+
+    .serial-status-dot.connected {
+      background-color: #2ecc71;
+    }
+
+    .game-title {
+      font-size: 28px;
+      margin-bottom: 15px;
+      background: linear-gradient(90deg, #4cc9f0, #72efdd);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 2px 10px rgba(76, 201, 240, 0.3);
+      text-align: center;
+    }
+
+    .score-panel {
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      background: linear-gradient(90deg, #f72585, #4361ee);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      padding: 5px 20px;
+      background-color: rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+      text-align: center;
+    }
+
+    .game-container-wrapper {
+      width: 100%;
+      height: 1000px;
+      max-height: 80vh;
+      position: relative;
+      border-radius: 13px;
+      padding: 3px;
+      background: linear-gradient(135deg, #4cc9f0, #4361ee, #f72585);
+      box-shadow: 0 0 20px rgba(76, 201, 240, 0.3);
+      margin: 0 auto;
+    }
+
+    .game-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #000;
+      background-image: radial-gradient(2px 2px at 20px 30px,
+          #ffffff,
+          rgba(0, 0, 0, 0)),
+        radial-gradient(2px 2px at 40px 70px, #ffffff, rgba(0, 0, 0, 0)),
+        radial-gradient(2px 2px at 50px 160px, #ffffff, rgba(0, 0, 0, 0)),
+        radial-gradient(2px 2px at 90px 40px, #ffffff, rgba(0, 0, 0, 0)),
+        radial-gradient(2px 2px at 130px 80px, #ffffff, rgba(0, 0, 0, 0));
+      animation: starTwinkle 8s linear infinite;
+    }
+
+    @keyframes starTwinkle {
+      0% {
+        opacity: 0.3;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0.3;
+      }
+    }
+
+    .player {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(45deg, #4cc9f0, #72efdd);
+      border: 2px solid #fff;
+      position: absolute;
+      bottom: 30px;
+      left: calc(50% - 25px);
+      border-radius: 50%;
+      transition: left 0.08s ease, transform 0.1s ease;
+      z-index: 10;
+      box-shadow: 0 0 20px rgba(76, 201, 240, 0.8);
+      opacity: 1;
+    }
+
+    .player:active {
+      transform: scale(0.95);
+    }
+
+    .enemy {
+      width: 50px;
+      height: 40px;
+      position: absolute;
+      z-index: 5;
+      background: linear-gradient(45deg, #f72585, #ff4d6d);
+      clip-path: polygon(50% 100%,
+          100% 50%,
+          70% 50%,
+          70% 0%,
+          30% 0%,
+          30% 50%,
+          0% 50%);
+      box-shadow: 0 0 15px rgba(247, 37, 133, 0.8);
+      animation: enemyPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes enemyPulse {
+      0% {
+        opacity: 0.8;
+        transform: scale(1) rotate(0deg);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.05) rotate(2deg);
+      }
+
+      100% {
+        opacity: 0.8;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+
+    .special-enemy {
+      width: 60px;
+      height: 50px;
+      position: absolute;
+      z-index: 6;
+      background: linear-gradient(45deg, #ff9e00, #ff0000);
+      clip-path: polygon(50% 100%,
+          100% 50%,
+          70% 50%,
+          70% 0%,
+          30% 0%,
+          30% 50%,
+          0% 50%);
+      box-shadow: 0 0 25px rgba(255, 158, 0, 0.9);
+      animation: specialEnemyPulse 1s ease-in-out infinite;
+    }
+
+    .special-enemy.bottom {
+      clip-path: polygon(50% 0%,
+          100% 50%,
+          70% 50%,
+          70% 100%,
+          30% 100%,
+          30% 50%,
+          0% 50%);
+    }
+
+    @keyframes specialEnemyPulse {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.8;
+        transform: scale(1.1);
+      }
+
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .warning {
+      position: absolute;
+      padding: 8px 15px;
+      border: 2px dashed #ff9e00;
+      border-radius: 8px;
+      color: #ff9e00;
+      font-size: 16px;
+      font-weight: bold;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 7;
+      animation: warningBlink 0.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes warningBlink {
+      0% {
+        opacity: 0.5;
+        transform: scale(1);
+      }
+
+      100% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+    }
+
+    .explosion {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(45deg, #ff9e00, #ff0054);
+      z-index: 20;
+      animation: explosion 0.5s ease-out forwards;
+    }
+
+    @keyframes explosion {
+      0% {
+        transform: scale(0);
+        opacity: 1;
+      }
+
+      50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+      }
+
+      100% {
+        transform: scale(1.5);
+        opacity: 0;
+      }
+    }
+
+    .game-over {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg,
+          rgba(0, 0, 0, 0.9),
+          rgba(30, 30, 60, 0.9));
+      color: white;
+      padding: 30px 40px;
+      border-radius: 15px;
+      text-align: center;
+      font-size: 24px;
+      z-index: 1000;
+      display: none;
+      animation: popup 0.3s ease-out;
+      border: 1px solid rgba(76, 201, 240, 0.5);
+    }
+
+    @keyframes popup {
+      0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+    }
+
+    .game-over button {
+      margin-top: 20px;
+      padding: 12px 25px;
+      font-size: 18px;
+      cursor: pointer;
+      background: linear-gradient(90deg, #4cc9f0, #4361ee);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 10px rgba(76, 201, 240, 0.3);
+    }
+
+    .game-over button:hover {
+      background: linear-gradient(90deg, #3da8d0, #3751d0);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(76, 201, 240, 0.5);
+    }
+
+    .game-over button:active {
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+
+      .container {
+        padding: 1.5rem;
+        margin-top: 1rem;
+      }
+
+      h1 {
+        font-size: 1.6rem;
+      }
+
+      .course-info {
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+      }
+
+      .mode-select-group {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+
+      textarea {
+        height: 200px;
+      }
+
+      .clear-btn,
+      .disconnect-btn,
+      .serial-connect-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+      }
+
+      .total-raw-chart,
+      .recent-raw-chart,
+      .state-change-chart {
+        height: 250px;
+      }
+
+      .chart-toggle-btn {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.75rem;
+      }
+
+      .data-display {
+        margin-bottom: 1rem;
+      }
+
+      #wifiStatusDot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #e74c3c;
+        transition: background-color 0.3s ease;
+      }
+
+      #wifiStatusDot.connected {
+        background-color: #f39c12;
+      }
+
+      .game-container-wrapper {
+        height: 400px;
+      }
+
+      .game-title {
+        font-size: 24px;
+      }
+
+      .score-panel {
+        font-size: 18px;
+      }
+
+      .view-switch-group {
+        gap: 0.5rem;
+      }
+
+      .view-switch-btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="view-switch-group">
+    <button class="view-switch-btn active" id="textViewBtn">显示</button>
+    <button class="view-switch-btn" id="chartViewBtn">统计</button>
+    <button class="view-switch-btn" id="gameViewBtn">游戏</button>
+  </div>
+
+  <div class="container text-container" id="textContainer">
+    <h1>基于肌电信号的手势识别</h1>
+    <span class="course-info">信号分析与处理第七组课程设计</span>
+
+    <div class="mode-select-group">
+      <div class="mode-select-item">
+        <input type="radio" name="transferMode" id="wifiMode" value="wifi" checked />
+        <label for="wifiMode">WiFi模式</label>
+      </div>
+      <div class="mode-select-item">
+        <input type="radio" name="transferMode" id="serialMode" value="serial" />
+        <label for="serialMode">串口模式</label>
+      </div>
+      <button class="serial-connect-btn" id="serialConnectBtn" disabled>
+        连接串口
+      </button>
+    </div>
+
+    <div class="data-display">
+      <div class="btn-group">
+        <button class="clear-btn" id="clearBtn">清空数据</button>
+        <button class="disconnect-btn" id="disconnectBtn">断开连接</button>
+      </div>
+      <textarea id="dataBox" readonly placeholder="等待数据传输..."></textarea>
+    </div>
+
+    <div class="status">
+      <div class="status-item">
+        <div class="status-dot" id="connStatusDot"></div>
+        <span id="connStatusText">未连接</span>
+      </div>
+      <div class="status-item" id="wifiStatusItem">
+        <div class="status-dot" id="wifiStatusDot"></div>
+        <span id="wifiStatusText">WiFi模块未连接</span>
+      </div>
+      <div class="status-item" id="serialStatusItem">
+        <div class="serial-status-dot" id="serialStatusDot"></div>
+        <span id="serialStatusText">串口未连接</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container chart-container" id="chartContainer">
+    <h1>可视化数据分析</h1>
+    <span class="course-info">名门望组课程设计</span>
+
+    <div class="buffer-chart">
+      <canvas id="bufferChart"></canvas>
+    </div>
+  </div>
+
+  <div class="game-container-section" id="gameContainerSection">
+    <h1 class="game-title">躲避敌机大挑战</h1>
+    <div class="score-panel">分数：<span id="score">0</span></div>
+    <div class="game-container-wrapper">
+      <div class="game-container" id="gameContainer">
+        <div class="player" id="player"></div>
+      </div>
+    </div>
+    <div class="game-over" id="gameOver">
+      游戏结束！<br />
+      最终分数：<span id="finalScore">0</span><br />
+      <button id="restartBtn">重新开始</button>
+    </div>
+  </div>
+
+  <script>
+    const dataBox = document.getElementById("dataBox");
+    const connStatusDot = document.getElementById("connStatusDot");
+    const connStatusText = document.getElementById("connStatusText");
+    const wifiStatusDot = document.getElementById("wifiStatusDot");
+    const wifiStatusText = document.getElementById("wifiStatusText");
+    const wifiStatusItem = document.getElementById("wifiStatusItem");
+    const serialStatusDot = document.getElementById("serialStatusDot");
+    const serialStatusText = document.getElementById("serialStatusText");
+    const serialStatusItem = document.getElementById("serialStatusItem");
+    const serialConnectBtn = document.getElementById("serialConnectBtn");
+    const modeRadios = document.querySelectorAll(
+      'input[name="transferMode"]'
+    );
+    const clearBtn = document.getElementById("clearBtn");
+    const disconnectBtn = document.getElementById("disconnectBtn");
+    const bufferChartCanvas = document.getElementById("bufferChart");
+
+    const stateMap = {
+      0: { name: "静息" },
+      1: { name: "握拳" },
+      2: { name: "Right" },
+      3: { name: "Left" },
+    };
+    const stateNames = Object.values(stateMap).map((item) => item.name);
+    const chartColors = {
+      background: [
+        "rgba(52, 152, 219, 0.6)",
+        "rgba(46, 204, 113, 0.6)",
+        "rgba(155, 89, 182, 0.6)",
+        "rgba(231, 76, 60, 0.6)",
+      ],
+      border: [
+        "rgba(52, 152, 219, 1)",
+        "rgba(46, 204, 113, 1)",
+        "rgba(155, 89, 182, 1)",
+        "rgba(231, 76, 60, 1)",
+      ],
+    };
+
+    let lastState = null;
+    let ws;
+    let isHandlingDisconnect = false;
+    const reconnectInterval = 3000;
+    let isManualDisconnect = false;
+    let isReconnecting = false;
+    let hasReportedDisconnect = false;
+    let port;
+    let reader;
+    let isSerialConnected = false;
+    let serialReadBuffer = "";
+    let currentMode = "wifi";
+    let readableStreamClosed;
+
+    // 环形缓冲区配置
+    const RING_BUFFER_SIZE = 100;
+    let ringBuffer = new Array(RING_BUFFER_SIZE);
+    let ringBufferWriteIndex = 0;
+    let ringBufferReadIndex = 0;
+    let ringBufferCount = 0;
+
+    // 性能优化配置
+    const MAX_LOG_LINES = 1000; // 最大日志行数
+    let logLines = [];
+    let chartUpdatePending = false;
+    const CHART_UPDATE_INTERVAL = 50; // 图表更新间隔(ms) - 优化为50ms提高流畅度
+    let scrollPending = false;
+    const MAX_BATCH_PROCESS = 100; // 每次最多处理的数据点数
+
+    let bufferChartInstance = null; // 环形缓冲区图表实例
+
+    const isSerialAPISupported = "serial" in navigator;
+
+    const textViewBtn = document.getElementById("textViewBtn");
+    const chartViewBtn = document.getElementById("chartViewBtn");
+    const gameViewBtn = document.getElementById("gameViewBtn");
+    const textContainer = document.getElementById("textContainer");
+    const chartContainer = document.getElementById("chartContainer");
+    const gameContainerSection = document.getElementById(
+      "gameContainerSection"
+    );
+
+    textViewBtn.addEventListener("click", () => {
+      textViewBtn.classList.add("active");
+      chartViewBtn.classList.remove("active");
+      gameViewBtn.classList.remove("active");
+      textContainer.style.display = "block";
+      chartContainer.style.display = "none";
+      gameContainerSection.style.display = "none";
+    });
+
+    chartViewBtn.addEventListener("click", () => {
+      chartViewBtn.classList.add("active");
+      textViewBtn.classList.remove("active");
+      gameViewBtn.classList.remove("active");
+      textContainer.style.display = "none";
+      chartContainer.style.display = "block";
+      gameContainerSection.style.display = "none";
+      // 每次切换到统计视图时都重新初始化图表，确保在可见状态下正确渲染
+      initBufferChart();
+    });
+
+    gameViewBtn.addEventListener("click", () => {
+      gameViewBtn.classList.add("active");
+      textViewBtn.classList.remove("active");
+      chartViewBtn.classList.remove("active");
+      textContainer.style.display = "none";
+      chartContainer.style.display = "none";
+      gameContainerSection.style.display = "block";
+      if (!gameInitialized) {
+        initGame();
+      }
+    });
+
+    let gameInitialized = false;
+    let gameConfig = {
+      playerSpeed: 10,
+      enemySpeed: 4,
+      enemySpawnInterval: 1200,
+      playerWidth: 50,
+      playerHeight: 50,
+      scorePerSecond: 10,
+      specialEnemySpawnInterval: 5000,
+      specialEnemyWarningTime: 1500,
+      specialEnemySpeed: 15,
+      specialEnemySize: { width: 60, height: 50 },
+      specialEnemyXRange: [50, 550],
+    };
+    let player,
+      gameContainer,
+      scoreElement,
+      gameOverElement,
+      finalScoreElement,
+      restartBtn;
+    let score = 0,
+      isGameOver = false;
+    let scoreTimer = null,
+      enemySpawnTimer = null,
+      specialEnemySpawnTimer = null;
+    let enemyIntervals = [],
+      specialEnemyIntervals = [];
+    let containerSize, playerX;
+
+    function initGame() {
+      if (gameInitialized) return;
+
+      player = document.getElementById("player");
+      gameContainer = document.getElementById("gameContainer");
+      scoreElement = document.getElementById("score");
+      gameOverElement = document.getElementById("gameOver");
+      finalScoreElement = document.getElementById("finalScore");
+      restartBtn = document.getElementById("restartBtn");
+
+      containerSize = getGameContainerSize();
+      playerX = (containerSize.width - gameConfig.playerWidth) / 2;
+      player.style.left = `${playerX}px`;
+
+      window.addEventListener("resize", () => {
+        if (!isGameOver) {
+          containerSize = getGameContainerSize();
+          playerX = Math.min(
+            playerX,
+            containerSize.width - gameConfig.playerWidth
+          );
+          player.style.left = `${playerX}px`;
+        }
+      });
+
+      restartBtn.addEventListener("click", restartGame);
+      startEnemySpawn();
+      startSpecialEnemySpawn();
+      startScoreTimer();
+      gameInitialized = true;
+    }
+
+    function getGameContainerSize() {
+      const container = document.getElementById("gameContainer");
+      return {
+        width: container.offsetWidth,
+        height: container.offsetHeight,
+      };
+    }
+
+    function handlePlayerMove(command) {
+      // 检查游戏是否已初始化，防止访问undefined对象
+      if (isGameOver || !player || !containerSize) return;
+
+      switch (command) {
+        case 0:
+        case 1:
+          break;
+        case 2:
+          playerX = Math.min(
+            playerX + gameConfig.playerSpeed,
+            containerSize.width - gameConfig.playerWidth
+          );
+          player.style.left = `${playerX}px`;
+          break;
+        case 3:
+          playerX = Math.max(playerX - gameConfig.playerSpeed, 0);
+          player.style.left = `${playerX}px`;
+          break;
+        default:
+          console.log("无效指令：", command);
+      }
+    }
+
+    function createWarning(x, y) {
+      const warning = document.createElement("div");
+      warning.classList.add("warning");
+      warning.textContent = "危险！";
+      warning.style.left = `${x - 30}px`;
+      warning.style.top = `${y - 20}px`;
+      gameContainer.appendChild(warning);
+
+      setTimeout(() => {
+        if (warning.parentNode) {
+          warning.remove();
+        }
+      }, gameConfig.specialEnemyWarningTime);
+
+      return warning;
+    }
+
+    function spawnEnemy() {
+      if (isGameOver) return;
+
+      let enemy = document.createElement("div");
+      enemy.classList.add("enemy");
+      const enemyColors = [
+        "linear-gradient(45deg, #f72585, #ff4d6d)",
+        "linear-gradient(45deg, #7209b7, #f72585)",
+        "linear-gradient(45deg, #ff9e00, #ff4d6d)",
+      ];
+      enemy.style.background =
+        enemyColors[Math.floor(Math.random() * enemyColors.length)];
+      const enemyWidth = 50;
+      const enemyHeight = 40;
+      let enemyX = Math.random() * (containerSize.width - enemyWidth);
+      let enemyY = -enemyHeight;
+      enemy.style.left = `${enemyX}px`;
+      enemy.style.top = `${enemyY}px`;
+      gameContainer.appendChild(enemy);
+
+      let enemyMoveInterval = setInterval(() => {
+        if (isGameOver) {
+          clearInterval(enemyMoveInterval);
+          enemy.remove();
+          return;
+        }
+
+        enemyY += gameConfig.enemySpeed;
+        enemy.style.top = `${enemyY}px`;
+
+        if (enemyY > containerSize.height + enemyHeight) {
+          clearInterval(enemyMoveInterval);
+          enemy.remove();
+          enemyIntervals = enemyIntervals.filter(
+            (interval) => interval !== enemyMoveInterval
+          );
+        }
+
+        if (checkCollision(player, enemy, enemyWidth, enemyHeight)) {
+          createExplosion(
+            playerX + gameConfig.playerWidth / 2,
+            player.offsetTop + gameConfig.playerHeight / 2
+          );
+          gameOver();
+        }
+      }, 20);
+      enemyIntervals.push(enemyMoveInterval);
+    }
+
+    function spawnSpecialEnemy() {
+      if (isGameOver) return;
+
+      const direction = Math.random() > 0.5 ? "topToBottom" : "bottomToTop";
+      const specialWidth = gameConfig.specialEnemySize.width;
+      const specialHeight = gameConfig.specialEnemySize.height;
+      const specialX = Math.random() * (containerSize.width - specialWidth);
+
+      let warningY, specialY;
+      if (direction === "topToBottom") {
+        specialY = -specialHeight;
+        warningY = 40;
+      } else {
+        specialY = containerSize.height + specialHeight;
+        warningY = containerSize.height - 60;
+      }
+
+      createWarning(specialX, warningY);
+
+      setTimeout(() => {
+        if (isGameOver) return;
+
+        const specialEnemy = document.createElement("div");
+        specialEnemy.classList.add("special-enemy");
+        if (direction === "bottomToTop") {
+          specialEnemy.classList.add("bottom");
+        }
+        specialEnemy.style.left = `${specialX}px`;
+        specialEnemy.style.top = `${specialY}px`;
+        gameContainer.appendChild(specialEnemy);
+
+        const specialMoveInterval = setInterval(() => {
+          if (isGameOver) {
+            clearInterval(specialMoveInterval);
+            specialEnemy.remove();
+            return;
+          }
+
+          if (direction === "topToBottom") {
+            specialY += gameConfig.specialEnemySpeed;
+          } else {
+            specialY -= gameConfig.specialEnemySpeed;
+          }
+          specialEnemy.style.top = `${specialY}px`;
+
+          if (
+            specialY > containerSize.height + specialHeight ||
+            specialY < -specialHeight
+          ) {
+            clearInterval(specialMoveInterval);
+            specialEnemy.remove();
+            specialEnemyIntervals = specialEnemyIntervals.filter(
+              (interval) => interval !== specialMoveInterval
+            );
+          }
+
+          if (
+            checkCollision(player, specialEnemy, specialWidth, specialHeight)
+          ) {
+            createExplosion(
+              playerX + gameConfig.playerWidth / 2,
+              player.offsetTop + gameConfig.playerHeight / 2
+            );
+            gameOver();
+          }
+        }, 20);
+        specialEnemyIntervals.push(specialMoveInterval);
+      }, gameConfig.specialEnemyWarningTime);
+    }
+
+    function createExplosion(x, y) {
+      const explosion = document.createElement("div");
+      explosion.classList.add("explosion");
+      explosion.style.left = `${x - 40}px`;
+      explosion.style.top = `${y - 40}px`;
+      gameContainer.appendChild(explosion);
+      setTimeout(() => {
+        explosion.remove();
+      }, 500);
+    }
+
+    function checkCollision(obj1, obj2, obj2Width, obj2Height) {
+      const rect1 = obj1.getBoundingClientRect();
+      const rect2 = obj2.getBoundingClientRect();
+      return !(
+        rect1.bottom < rect2.top ||
+        rect1.top > rect2.bottom ||
+        rect1.right < rect2.left ||
+        rect1.left > rect2.right
+      );
+    }
+
+    function gameOver() {
+      isGameOver = true;
+      finalScoreElement.textContent = score;
+      gameOverElement.style.display = "block";
+
+      clearInterval(enemySpawnTimer);
+      clearInterval(specialEnemySpawnTimer);
+      clearInterval(scoreTimer);
+      enemyIntervals.forEach((interval) => clearInterval(interval));
+      specialEnemyIntervals.forEach((interval) => clearInterval(interval));
+      enemyIntervals = [];
+      specialEnemyIntervals = [];
+    }
+
+    function restartGame() {
+      isGameOver = false;
+      score = 0;
+      scoreElement.textContent = score;
+      gameOverElement.style.display = "none";
+      document.querySelectorAll(".enemy").forEach((enemy) => enemy.remove());
+      document
+        .querySelectorAll(".special-enemy")
+        .forEach((enemy) => enemy.remove());
+      document
+        .querySelectorAll(".warning")
+        .forEach((warning) => warning.remove());
+      document
+        .querySelectorAll(".explosion")
+        .forEach((explosion) => explosion.remove());
+
+      containerSize = getGameContainerSize();
+      playerX = (containerSize.width - gameConfig.playerWidth) / 2;
+      player.style.left = `${playerX}px`;
+
+      startEnemySpawn();
+      startSpecialEnemySpawn();
+      startScoreTimer();
+    }
+
+    function startEnemySpawn() {
+      enemySpawnTimer = setInterval(
+        spawnEnemy,
+        gameConfig.enemySpawnInterval
+      );
+    }
+
+    function startSpecialEnemySpawn() {
+      specialEnemySpawnTimer = setInterval(
+        spawnSpecialEnemy,
+        gameConfig.specialEnemySpawnInterval
+      );
+    }
+
+    function startScoreTimer() {
+      scoreTimer = setInterval(() => {
+        if (!isGameOver) {
+          score += gameConfig.scorePerSecond;
+          scoreElement.textContent = score;
+        }
+      }, 1000);
+    }
+
+    function formatTimeWithMs(date) {
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      const ms = String(date.getMilliseconds()).padStart(3, "0");
+      return `${hours}:${minutes}:${seconds}.${ms}`;
+    }
+
+    function destroyChart(chartInstance) {
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+    }
+
+    function getChartDataArray(dataObj) {
+      return [dataObj[0], dataObj[1], dataObj[2], dataObj[3]];
+    }
+
+    function initTotalRawChart(chartType = "bar", animate = true) {
+      destroyChart(totalRawChartInstance);
+      const dataArray = getChartDataArray(totalRawCountData);
+      let chartConfig = {};
+
+      if (chartType === "bar") {
+        chartConfig = {
+          type: "bar",
+          data: {
+            labels: stateNames,
+            datasets: [
+              {
+                label: "总接收次数",
+                data: dataArray,
+                backgroundColor: chartColors.background,
+                borderColor: chartColors.border,
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: animate
+              ? { duration: 800, easing: "easeOutCirc" }
+              : false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: "次数" },
+                ticks: { precision: 0 },
+              },
+              x: { title: { display: true, text: "手势状态" } },
+            },
+            plugins: {
+              legend: { display: false },
+              title: {
+                display: true,
+                text: "手势识别状态接收总统计",
+                font: { size: 16 },
+              },
+              tooltip: {
+                callbacks: { label: (context) => `次数：${context.raw}` },
+              },
+            },
+          },
+        };
+      } else if (chartType === "pie") {
+        chartConfig = {
+          type: "pie",
+          data: {
+            labels: stateNames,
+            datasets: [
+              {
+                label: "占比",
+                data: dataArray,
+                backgroundColor: chartColors.background,
+                borderColor: chartColors.border,
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: animate
+              ? { duration: 800, easing: "easeOutCirc" }
+              : false,
+            plugins: {
+              legend: { position: "right" },
+              title: {
+                display: true,
+                text: "手势识别状态接收总占比",
+                font: { size: 16 },
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const total = dataArray.reduce((a, b) => a + b, 0);
+                    const percentage =
+                      total > 0
+                        ? ((context.raw / total) * 100).toFixed(2)
+                        : 0;
+                    return `${context.label}：${context.raw}次 (${percentage}%)`;
+                  },
+                },
+              },
+            },
+          },
+        };
+      }
+
+      totalRawChartInstance = new Chart(totalRawChartCanvas, chartConfig);
+      totalRawCurrentType = chartType;
+    }
+
+    function initRecentRawChart(chartType = "bar", animate = true) {
+      destroyChart(recentRawChartInstance);
+      const dataArray = getChartDataArray(recentRawCountData);
+      let chartConfig = {};
+
+      if (chartType === "bar") {
+        chartConfig = {
+          type: "bar",
+          data: {
+            labels: stateNames,
+            datasets: [
+              {
+                label: "近1000次接收次数",
+                data: dataArray,
+                backgroundColor: chartColors.background,
+                borderColor: chartColors.border,
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: animate
+              ? { duration: 800, easing: "easeOutCirc" }
+              : false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: "次数" },
+                ticks: { precision: 0 },
+              },
+              x: { title: { display: true, text: "手势状态" } },
+            },
+            plugins: {
+              legend: { display: false },
+              title: {
+                display: true,
+                text: "近1000次手势识别状态接收统计",
+                font: { size: 16 },
+              },
+              tooltip: {
+                callbacks: { label: (context) => `次数：${context.raw}` },
+              },
+            },
+          },
+        };
+      } else if (chartType === "pie") {
+        chartConfig = {
+          type: "pie",
+          data: {
+            labels: stateNames,
+            datasets: [
+              {
+                label: "占比",
+                data: dataArray,
+                backgroundColor: chartColors.background,
+                borderColor: chartColors.border,
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: animate
+              ? { duration: 800, easing: "easeOutCirc" }
+              : false,
+            plugins: {
+              legend: { position: "right" },
+              title: {
+                display: true,
+                text: "近1000次手势识别状态接收占比",
+                font: { size: 16 },
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const total = dataArray.reduce((a, b) => a + b, 0);
+                    const percentage =
+                      total > 0
+                        ? ((context.raw / total) * 100).toFixed(2)
+                        : 0;
+                    return `${context.label}：${context.raw}次 (${percentage}%)`;
+                  },
+                },
+              },
+            },
+          },
+        };
+      }
+
+      recentRawChartInstance = new Chart(recentRawChartCanvas, chartConfig);
+      recentRawCurrentType = chartType;
+    }
+
+    function initStateChangeChart(chartType = "bar", animate = true) {
+      destroyChart(stateChangeChartInstance);
+      const dataArray = getChartDataArray(stateChangeCountData);
+      let chartConfig = {};
+
+      if (chartType === "bar") {
+        chartConfig = {
+          type: "bar",
+          data: {
+            labels: stateNames,
+            datasets: [
+              {
+                label: "状态切换次数",
+                data: dataArray,
+                backgroundColor: chartColors.background,
+                borderColor: chartColors.border,
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: animate
+              ? { duration: 800, easing: "easeOutCirc" }
+              : false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: "次数" },
+                ticks: { precision: 0 },
+              },
+              x: { title: { display: true, text: "手势状态" } },
+            },
+            plugins: {
+              legend: { display: false },
+              title: {
+                display: true,
+                text: "手势识别状态切换总统计",
+                font: { size: 16 },
+              },
+              tooltip: {
+                callbacks: { label: (context) => `次数：${context.raw}` },
+              },
+            },
+          },
+        };
+      } else if (chartType === "pie") {
+        chartConfig = {
+          type: "pie",
+          data: {
+            labels: stateNames,
+            datasets: [
+              {
+                label: "占比",
+                data: dataArray,
+                backgroundColor: chartColors.background,
+                borderColor: chartColors.border,
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: animate
+              ? { duration: 800, easing: "easeOutCirc" }
+              : false,
+            plugins: {
+              legend: { position: "right" },
+              title: {
+                display: true,
+                text: "手势识别状态切换占比",
+                font: { size: 16 },
+              },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const total = dataArray.reduce((a, b) => a + b, 0);
+                    const percentage =
+                      total > 0
+                        ? ((context.raw / total) * 100).toFixed(2)
+                        : 0;
+                    return `${context.label}：${context.raw}次 (${percentage}%)`;
+                  },
+                },
+              },
+            },
+          },
+        };
+      }
+
+      stateChangeChartInstance = new Chart(
+        stateChangeChartCanvas,
+        chartConfig
+      );
+      stateChangeCurrentType = chartType;
+    }
+
+    function updateTotalRawCount(stateNum) {
+      if (!stateMap[stateNum]) return;
+      totalRawCountData[stateNum]++;
+    }
+
+    function updateRecentRawCount(stateNum) {
+      if (!stateMap[stateNum]) return;
+      recentRawData.push(stateNum);
+      recentRawCountData[stateNum]++;
+
+      if (recentRawData.length > MAX_RECENT_RAW_COUNT) {
+        const oldState = recentRawData.shift();
+        recentRawCountData[oldState]--;
+      }
+    }
+
+    function updateStateChangeCount(stateNum) {
+      if (lastState === stateNum) return;
+      if (!stateMap[stateNum]) {
+        logData(`[${formatTimeWithMs(new Date())}] 无效状态：${stateNum}`);
+        return;
+      }
+      stateChangeCountData[stateNum]++;
+      lastState = stateNum;
+    }
+
+    // 图表更新节流函数
+    function scheduleChartUpdate() {
+      if (!chartUpdatePending) {
+        chartUpdatePending = true;
+        setTimeout(() => {
+          refreshBufferChart();
+          chartUpdatePending = false;
+        }, CHART_UPDATE_INTERVAL);
+      }
+    }
+
+    // 滚动优化函数
+    function scheduleScroll() {
+      if (!scrollPending) {
+        scrollPending = true;
+        requestAnimationFrame(() => {
+          dataBox.scrollTop = dataBox.scrollHeight;
+          scrollPending = false;
+        });
+      }
+    }
+
+    // 初始化环形缓冲区数据图表
+    function initBufferChart() {
+      if (bufferChartInstance) {
+        bufferChartInstance.destroy();
+      }
+
+      // 获取当前缓冲区数据统计
+      const initialCounts = countBufferData();
+
+      bufferChartInstance = new Chart(bufferChartCanvas, {
+        type: 'bar',
+        data: {
+          labels: stateNames,
+          datasets: [{
+            label: '数据数量',
+            data: [
+              initialCounts[0],
+              initialCounts[1],
+              initialCounts[2],
+              initialCounts[3]
+            ],
+            backgroundColor: chartColors.background,
+            borderColor: chartColors.border,
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,  // 禁用动画以提升性能
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: '数量' },
+              ticks: { precision: 0 },
+            },
+            x: { title: { display: true, text: '手势状态' } },
+          },
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: '手势数据统计',
+              font: { size: 16 },
+            },
+            tooltip: {
+              callbacks: { label: (context) => `数量：${context.raw}` },
+            },
+          },
+        },
+      });
+    }
+
+    // 统计当前环形缓冲区中各值的数量
+    function countBufferData() {
+      const counts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+
+      // 遍历环形缓冲区中实际存在的数据
+      for (let i = 0; i < ringBufferCount; i++) {
+        const index = (ringBufferReadIndex + i) % RING_BUFFER_SIZE;
+        const value = parseInt(ringBuffer[index]);
+        if (!isNaN(value) && value >= 0 && value <= 3) {
+          counts[value]++;
+        }
+      }
+
+      return counts;
+    }
+
+    // 刷新图表 - 实时统计环形缓冲区数据
+    function refreshBufferChart() {
+      if (bufferChartInstance) {
+        // 重新统计当前缓冲区中的数据
+        const currentCounts = countBufferData();
+
+        bufferChartInstance.data.datasets[0].data = [
+          currentCounts[0],
+          currentCounts[1],
+          currentCounts[2],
+          currentCounts[3]
+        ];
+        bufferChartInstance.update('none'); // 使用'none'模式无动画更新
+      }
+    }
+
+    function processData(rawData) {
+      rawData = rawData.trim();
+      if (rawData === "esp_connected") {
+        wifiStatusDot.classList.add("connected");
+        wifiStatusText.textContent = "WiFi模块已连接";
+        logData(`[${formatTimeWithMs(new Date())}] WiFi模块已连接`);
+        return;
+      } else if (rawData === "esp_disconnected") {
+        wifiStatusDot.classList.remove("connected");
+        wifiStatusText.textContent = "WiFi模块已断开";
+        logData(`[${formatTimeWithMs(new Date())}] WiFi模块已断开`);
+        return;
+      }
+
+      if (rawData === "disconnect") {
+        disconnectHandler();
+        return;
+      }
+      const stateNum = parseInt(rawData);
+      if (isNaN(stateNum)) {
+        logData(
+          `[${formatTimeWithMs(
+            new Date()
+          )}] 数据格式错误：${rawData}（应为0、1、2、3）`
+        );
+        return;
+      }
+
+      // 将有效状态数据写入环形缓冲区，供图表统计使用
+      writeToRingBuffer(stateNum);
+
+      const stateName = stateMap[stateNum]?.name || "未知状态";
+      const displayText = `[${formatTimeWithMs(
+        new Date()
+      )}] 识别状态：${stateName}（${stateNum}）`;
+      logData(displayText);
+
+      handlePlayerMove(stateNum);
+
+      // 图表会在刷新时实时统计环形缓冲区数据，无需累积
+
+      // 使用节流函数替代直接刷新图表
+      scheduleChartUpdate();
+    }
+
+    function handleChartTypeToggle(event) {
+      const target = event.target;
+      const chartName = target.dataset.chart;
+      const chartType = target.dataset.type;
+
+      const siblingButtons =
+        target.parentElement.querySelectorAll(".chart-toggle-btn");
+      siblingButtons.forEach((btn) => btn.classList.remove("active"));
+      target.classList.add("active");
+
+      switch (chartName) {
+        case "totalRaw":
+          initTotalRawChart(chartType);
+          break;
+        case "recentRaw":
+          initRecentRawChart(chartType);
+          break;
+        case "stateChange":
+          initStateChangeChart(chartType);
+          break;
+      }
+    }
+
+    function refreshAllCharts() {
+      initTotalRawChart(totalRawCurrentType, false);
+      initRecentRawChart(recentRawCurrentType, false);
+      initStateChangeChart(stateChangeCurrentType, false);
+    }
+
+    function clearAllData() {
+      dataBox.value = "";
+      logLines = []; // 清空日志数组
+
+      lastState = null;
+      hasReportedDisconnect = false;
+
+      // 刷新图表会自动重新统计环形缓冲区数据
+      refreshBufferChart();
+      logData(`[${formatTimeWithMs(new Date())}] 数据已清空`);
+    }
+
+    function initWebSocket() {
+      if (isManualDisconnect || isReconnecting || currentMode !== "wifi")
+        return;
+
+      if (ws) {
+        switch (ws.readyState) {
+          case WebSocket.OPEN:
+          case WebSocket.CONNECTING:
+            ws.close(1000, "Reconnecting");
+            break;
+        }
+        ws = null;
+      }
+
+      isReconnecting = true;
+      ws = new WebSocket("ws://localhost:8080");
+
+      ws.onopen = () => {
+        isReconnecting = false;
+        isHandlingDisconnect = false;
+        hasReportedDisconnect = false;
+        connStatusDot.classList.add("connected");
+        connStatusText.textContent = "node.js 已连接";
+        disconnectBtn.textContent = "断开连接";
+        logData(`[${formatTimeWithMs(new Date())}] WiFi模式连接成功`);
+        lastState = null;
+      };
+
+      ws.onmessage = (event) => {
+        processData(event.data);
+      };
+
+      ws.onclose = (event) => {
+        const wasManualClose =
+          event.code === 1000 && event.reason === "Reconnecting";
+        disconnectHandler();
+        if (
+          !isManualDisconnect &&
+          !wasManualClose &&
+          currentMode === "wifi"
+        ) {
+          isReconnecting = false;
+          setTimeout(initWebSocket, reconnectInterval);
+        } else {
+          isReconnecting = false;
+        }
+        wifiStatusDot.classList.remove("connected");
+        wifiStatusText.textContent = "WiFi模块未连接";
+      };
+
+      ws.onerror = (err) => {
+        console.error("WiFi模式错误：", err);
+        isReconnecting = false;
+        disconnectHandler();
+        wifiStatusDot.classList.remove("connected");
+        wifiStatusText.textContent = "WiFi模块未连接";
+      };
+    }
+
+    async function releaseReader() {
+      if (reader) {
+        try {
+          await reader.cancel();
+          reader.releaseLock();
+        } catch (error) {
+          console.warn("释放读取器失败：", error);
+        } finally {
+          reader = null;
+        }
+      }
+      if (readableStreamClosed) {
+        try {
+          await readableStreamClosed.catch(() => { });
+        } catch (error) {
+          console.warn("关闭流失败：", error);
+        } finally {
+          readableStreamClosed = null;
+        }
+      }
+    }
+
+    async function requestSerialPort() {
+      if (port) {
+        await closeSerialPort();
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({
+          baudRate: 115200,
+          dataBits: 8,
+          stopBits: 1,
+          parity: "none",
+        });
+
+        isSerialConnected = true;
+        serialStatusDot.classList.add("connected");
+        serialStatusText.textContent = "串口已连接";
+        serialConnectBtn.disabled = true;
+        connStatusDot.classList.add("connected");
+        connStatusText.textContent = "串口模式已连接";
+        disconnectBtn.textContent = "断开连接";
+        logData(
+          `[${formatTimeWithMs(new Date())}] 串口连接成功，端口：${port.getInfo().usbVendorId
+          }:${port.getInfo().usbProductId}`
+        );
+
+        await readSerialData();
+      } catch (error) {
+        console.error("串口连接失败：", error);
+        if (error.name !== "AbortError") {
+          logData(
+            `[${formatTimeWithMs(new Date())}] 串口连接失败：${error.message}`
+          );
+          resetSerialState();
+        }
+      }
+    }
+
+    // 将数据写入环形缓冲区
+    function writeToRingBuffer(data) {
+      ringBuffer[ringBufferWriteIndex] = data;
+      ringBufferWriteIndex = (ringBufferWriteIndex + 1) % RING_BUFFER_SIZE;
+
+      if (ringBufferCount < RING_BUFFER_SIZE) {
+        ringBufferCount++;
+      } else {
+        // 缓冲区已满，覆盖最旧的数据，移动读指针
+        ringBufferReadIndex = (ringBufferReadIndex + 1) % RING_BUFFER_SIZE;
+      }
+    }
+
+    // 从环形缓冲区读取数据
+    function readFromRingBuffer() {
+      if (ringBufferCount === 0) {
+        return null;
+      }
+
+      const data = ringBuffer[ringBufferReadIndex];
+      ringBufferReadIndex = (ringBufferReadIndex + 1) % RING_BUFFER_SIZE;
+      ringBufferCount--;
+      return data;
+    }
+
+    // 获取环形缓冲区当前数据量
+    function getRingBufferCount() {
+      return ringBufferCount;
+    }
+
+    // 清空环形缓冲区
+    function clearRingBuffer() {
+      ringBufferWriteIndex = 0;
+      ringBufferReadIndex = 0;
+      ringBufferCount = 0;
+      ringBuffer = new Array(RING_BUFFER_SIZE);
+    }
+
+    async function readSerialData() {
+      if (!port?.readable) {
+        return;
+      }
+
+      const textDecoder = new TextDecoderStream();
+      readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+      reader = textDecoder.readable.getReader();
+
+      try {
+        while (port.readable && isSerialConnected) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
+          }
+          serialReadBuffer += value;
+          const lines = serialReadBuffer.split(/\r?\n/);
+          serialReadBuffer = lines.pop() || "";
+
+          // 直接处理每行数据，processData函数内部会写入环形缓冲区
+          for (const line of lines) {
+            if (line && isSerialConnected) {
+              processData(line);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("串口读取错误：", error);
+        if (isSerialConnected) {
+          logData(
+            `[${formatTimeWithMs(new Date())}] 串口读取错误：${error.message}`
+          );
+        }
+      } finally {
+        await releaseReader();
+        if (isSerialConnected) {
+          await closeSerialPort();
+        }
+      }
+    }
+
+    async function closeSerialPort() {
+      isSerialConnected = false;
+
+      await releaseReader();
+
+      if (port) {
+        try {
+          await port.close();
+        } catch (error) {
+          console.error("串口关闭失败：", error);
+        } finally {
+          port = null;
+        }
+      }
+
+      resetSerialState();
+      connStatusDot.classList.remove("connected");
+      connStatusText.textContent = "串口模式已断开";
+      logData(`[${formatTimeWithMs(new Date())}] 串口已断开`);
+    }
+
+    function resetSerialState() {
+      serialStatusDot.classList.remove("connected");
+      serialStatusText.textContent = "串口未连接";
+      serialConnectBtn.disabled = !isSerialAPISupported;
+      serialReadBuffer = "";
+      clearRingBuffer();
+      isSerialConnected = false;
+    }
+
+    function disconnectHandler() {
+      if (isHandlingDisconnect) return;
+      isHandlingDisconnect = true;
+
+      connStatusDot.classList.remove("connected");
+      if (currentMode === "wifi") {
+        connStatusText.textContent = "node.js 已断开";
+        if (isManualDisconnect) {
+          logData(`[${formatTimeWithMs(new Date())}] 手动断开WiFi连接`);
+        } else {
+          if (!hasReportedDisconnect) {
+            logData(`[${formatTimeWithMs(new Date())}] WiFi连接已断开`);
+            hasReportedDisconnect = true;
+          }
+        }
+      } else if (currentMode === "serial") {
+        connStatusText.textContent = "串口模式已断开";
+        logData(`[${formatTimeWithMs(new Date())}] 串口连接已断开`);
+      } else {
+        connStatusText.textContent = "未连接";
+      }
+
+      setTimeout(() => {
+        isHandlingDisconnect = false;
+      }, 1000);
+    }
+
+    function toggleConnection() {
+      if (currentMode === "wifi") {
+        if (
+          ws &&
+          (ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING)
+        ) {
+          isManualDisconnect = true;
+          ws.close();
+          disconnectBtn.textContent = "重新连接";
+        } else {
+          isManualDisconnect = false;
+          disconnectBtn.textContent = "断开连接";
+          initWebSocket();
+        }
+      } else if (currentMode === "serial") {
+        if (isSerialConnected) {
+          closeSerialPort();
+          disconnectBtn.textContent = "重新连接";
+          serialConnectBtn.disabled = false;
+        } else {
+          requestSerialPort();
+          disconnectBtn.textContent = "断开连接";
+        }
+      }
+    }
+
+    function handleModeChange() {
+      const selectedMode = document.querySelector(
+        'input[name="transferMode"]:checked'
+      ).value;
+      if (selectedMode === currentMode) return;
+
+      if (currentMode === "wifi") {
+        if (
+          ws &&
+          (ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING)
+        ) {
+          isManualDisconnect = true;
+          ws.close();
+        }
+        wifiStatusDot.classList.remove("connected");
+        wifiStatusText.textContent = "WiFi模块未连接";
+      } else if (currentMode === "serial") {
+        if (isSerialConnected) {
+          closeSerialPort();
+        }
+      }
+
+      currentMode = selectedMode;
+      connStatusDot.classList.remove("connected");
+      connStatusText.textContent = "未连接";
+      disconnectBtn.textContent = "断开连接";
+      hasReportedDisconnect = false;
+
+      if (currentMode === "wifi") {
+        isManualDisconnect = false;
+        initWebSocket();
+        serialConnectBtn.disabled = true;
+        wifiStatusItem.style.display = "flex";
+        serialStatusItem.style.display = "none";
+      } else if (currentMode === "serial") {
+        if (isSerialAPISupported) {
+          serialConnectBtn.disabled = false;
+          logData(
+            `[${formatTimeWithMs(
+              new Date()
+            )}] 已切换到串口模式，请点击"连接串口"按钮选择设备`
+          );
+        } else {
+          serialConnectBtn.disabled = true;
+          logData(
+            `[${formatTimeWithMs(
+              new Date()
+            )}] 你的浏览器不支持Web Serial API，请使用Chrome/Edge浏览器`
+          );
+        }
+        wifiStatusItem.style.display = "none";
+        serialStatusItem.style.display = "flex";
+        wifiStatusDot.classList.remove("connected");
+        wifiStatusText.textContent = "WiFi模块未连接";
+      }
+    }
+
+    function logData(text) {
+      // 使用数组存储日志，限制最大行数
+      logLines.push(text);
+      if (logLines.length > MAX_LOG_LINES) {
+        logLines.shift(); // 删除最旧的日志
+      }
+      dataBox.value = logLines.join('\n');
+
+      // 使用优化的滚动函数
+      scheduleScroll();
+    }
+
+    window.onload = () => {
+      // 移除initBufferChart()调用 - 图表将在用户切换到统计视图时初始化
+      // 这样可以避免在容器隐藏(display:none)时初始化导致的Canvas尺寸计算错误
+
+      modeRadios.forEach((radio) =>
+        radio.addEventListener("change", handleModeChange)
+      );
+      initWebSocket();
+
+      serialConnectBtn.disabled = true;
+      if (!isSerialAPISupported) {
+        serialStatusText.textContent = "浏览器不支持串口API";
+      }
+      wifiStatusItem.style.display = "flex";
+      serialStatusItem.style.display = "none";
+
+      serialConnectBtn.addEventListener("click", requestSerialPort);
+      clearBtn.addEventListener("click", clearAllData);
+      disconnectBtn.addEventListener("click", toggleConnection);
+    };
+  </script>
+</body>
+
+</html>
